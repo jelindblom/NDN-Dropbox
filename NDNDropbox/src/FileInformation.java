@@ -11,37 +11,38 @@
  * to maintain a local snapshot of the shared folder directory.
  */
 public class FileInformation {
-	private int version;
-	private boolean exists;
-	private String sha1;
+	private boolean exists, beingModified;
+	private byte[] localDigest;
+	CCNFileObject networkObject;
 	
-	public FileInformation(int version, boolean exists, String sha1) {
-		this.version = version;
-		this.exists = exists; 
-		this.sha1 = sha1;
-	}
-
-	public int getVersion() {
-		return version;
+	public FileInformation(boolean exists, CCNFileObject networkObject) {
+		this.exists = exists;
+		this.beingModified = false;
+		this.localDigest = null;
+		this.networkObject = networkObject;
 	}
 	
 	public boolean getExists() {
 		return exists;
 	}
 	
-	public String getSha1() {
-		return sha1;
+	public boolean getFlag() {
+		return beingModified;
 	}
 	
-	public void setVersion(int version) {
-		this.version = version; 
+	public byte[] getLocalDigest() {
+		return localDigest;
 	}
 	
 	public void setExists(boolean exists) {
 		this.exists = exists;
 	}
 	
-	public void setSha1(String sha1) {
-		this.sha1 = sha1;
+	public void setFlag(boolean beingModified) {
+		this.beingModified = beingModified;
+	}
+	
+	public void setLocalDigest(byte[] localDigest) {
+		this.localDigest = localDigest;
 	}
 }

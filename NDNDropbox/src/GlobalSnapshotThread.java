@@ -8,11 +8,6 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.concurrent.Future;
 
-import org.ccnx.ccn.CCNHandle;
-import org.ccnx.ccn.impl.CCNFlowControl.SaveType;
-import org.ccnx.ccn.protocol.ContentName;
-import org.ccnx.ccn.protocol.MalformedContentNameStringException;
-
 /**
  * NDN Dropbox: Distributed, Dropbox-like File Sharing Service over NDN
  *  
@@ -29,24 +24,29 @@ import org.ccnx.ccn.protocol.MalformedContentNameStringException;
  * changes, rather than one change per snapshot.
  */
 public class GlobalSnapshotThread implements Runnable {
-	private CCNHandle handle;
-	private String snapshot;
 	private Hashtable<String, FileInformation> sharedFiles;
+	
+	@SuppressWarnings("rawtypes")
 	private ArrayList<Future> taskProgress;
+	
+	private CCNFileObject globalSnapshotObject;
 
-	public GlobalSnapshotThread(String snapshot, Hashtable<String, FileInformation> sharedFiles, CCNHandle handle, ArrayList<Future> taskProgress) {
-		this.snapshot = snapshot;
-		this.handle = handle;
-		this.sharedFiles = sharedFiles;
+	public GlobalSnapshotThread(Parameters parameters, @SuppressWarnings("rawtypes") ArrayList<Future> taskProgress) {
+		this.sharedFiles = parameters.sharedFiles;
 		this.taskProgress = taskProgress;
+		this.globalSnapshotObject = parameters.globalSnapshotObject;
 	}
 
 	public void run() {
 		/** Create Snapshot */
 		try {
+			@SuppressWarnings("rawtypes")
 			Future future;
+			
 			while(!taskProgress.isEmpty()) {
+				@SuppressWarnings("rawtypes")
 				Iterator<Future> itr = taskProgress.iterator();
+				
 				while (itr.hasNext()) {
 					future = itr.next();
 					if(future.isDone() || future.isCancelled()) {
@@ -54,24 +54,27 @@ public class GlobalSnapshotThread implements Runnable {
 					}
 				}
 			}
-
-			CCNFileObject networkObject;
+			
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(baos));
-
 
 			Enumeration<String> keys = sharedFiles.keys();
 
 			synchronized(sharedFiles) {
 				while(keys.hasMoreElements()) {
 					String key = keys.nextElement(), result;
+					
 					FileInformation info = sharedFiles.get(key);
+					
 					if (info.getExists()) {
-						result = "true," + key + "," + info.getVersion() + "," + info.getSha1();
+						result = "true," + key;
 					}
 					else {
-						result = "false," + key + "," + info.getVersion() + "," + info.getSha1();
+						result = "false," + key;
 					}
+					
+					System.out.println(result);
+					
 					bufferedWriter.write(result);
 					bufferedWriter.newLine();
 				}
@@ -80,19 +83,10 @@ public class GlobalSnapshotThread implements Runnable {
 
 			byte[] snapshotArray = baos.toByteArray();
 
-			networkObject = new CCNFileObject(byte[].class, true, ContentName.fromNative(snapshot + "/snapshot" + "_" + (++NDNDropbox.snapshotVersion)), handle, snapshotArray);
-
-			networkObject.setupSave(SaveType.REPOSITORY);
-			networkObject.save();
-			networkObject.close();
-
-			System.out.println("Uploaded Snapshot: " + NDNDropbox.snapshotVersion);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
+			globalSnapshotObject.save(snapshotArray);
+		} 
+		catch (IOException e) {
 			e.printStackTrace();
-		} catch (MalformedContentNameStringException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		} 
 	}
 }

@@ -1,10 +1,9 @@
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.io.File;
+import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
-import org.ccnx.ccn.CCNHandle;
+import org.apache.commons.io.FileUtils;
 
 import net.contentobjects.jnotify.JNotify;
 import net.contentobjects.jnotify.JNotifyException;
@@ -24,83 +23,166 @@ import net.contentobjects.jnotify.JNotifyListener;
  */
 public class FolderWatch {
 	private int watchID;
-	private String sharedPath;
-	private CCNHandle putHandle;
-	private String namespace;
-	ExecutorService putFileThreadPool;
-	private Hashtable<String, FileInformation> sharedFiles;
-	ArrayList<Future> taskProgress;
+	private Parameters parameters;
 
-	public FolderWatch(String sharedPath, Hashtable<String, FileInformation> sharedFiles, String namespace, CCNHandle putHandle, ExecutorService putFileThreadPool, ArrayList<Future> taskProgress) {
+	public FolderWatch(Parameters parameters) {
 		this.watchID = 0;
-		this.sharedPath = sharedPath;
-		this.sharedFiles = sharedFiles;
-		this.putHandle = putHandle;
-		this.namespace = namespace;
-		this.putFileThreadPool = putFileThreadPool;
-		this.taskProgress = taskProgress;
+		this.parameters = parameters;
 	}
 
 	public void startJNotify() throws JNotifyException {
-		int mask =  JNotify.FILE_CREATED | 
-				JNotify.FILE_DELETED | 
-				JNotify.FILE_MODIFIED| 
-				JNotify.FILE_RENAMED;
+		int mask =  JNotify.FILE_ANY;
 
 		boolean watchSubtree = true;  // Recursive
 
-		watchID = JNotify.addWatch(sharedPath, mask, watchSubtree, new JNotifyListener() {
+		watchID = JNotify.addWatch(parameters.getSharedPath(), mask, watchSubtree, new JNotifyListener() {
 			public void fileRenamed(int wd, String rootPath, String oldName, String newName) {
-				//System.out.println("JNotifyTest.fileRenamed() : wd #" + wd + " root = " + rootPath + ", " + oldName + " -> " + newName);
+				/** Add Slash to Names */
+				oldName = "/" + oldName;
+				newName = "/" + newName;
+				
+				/** Create File based on Event */
+				File file = new File(rootPath + newName);
 
-				// TODO Handle fileRenamed case
+				/** Does this File meet our criteria? */
+				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
+					try {
+						byte[] byteArray = FileUtils.readFileToByteArray(file);
+
+						MessageDigest md = MessageDigest.getInstance("SHA-1");
+
+						byte[] digest = md.digest(byteArray);
+
+						/** Have we seen it before? */
+						if (parameters.sharedFiles.containsKey(newName)) {
+							FileInformation fileInfo = parameters.sharedFiles.get(newName);						
+
+							/** Is it untouched? */
+							if(!fileInfo.getFlag()) {
+								/** Have we seen this digest? */
+								if (fileInfo.getLocalDigest() != null) {
+									/** Are the Digests Equal? */
+									if (!MessageDigest.isEqual(fileInfo.getLocalDigest(), digest)) {
+
+										/** Reconcile */
+										Runnable runnable = new ReconcileThread(file, newName, parameters);
+										parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
+									}
+								}
+							}
+						}
+						else {
+
+							/** Reconcile */
+							Runnable runnable = new ReconcileThread(file, newName, parameters);
+							parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
+
+							/** Snapshot Update Needed */
+							NDNDropbox.updateNeeded = true;
+						}					
+					} 
+					catch (NoSuchAlgorithmException e) {
+						e.printStackTrace();
+					} 
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+
+				/** Delete Content under Old Name */
+				if (!oldName.equalsIgnoreCase("/null")) {
+					if(parameters.sharedFiles.containsKey(oldName)) {
+						FileInformation fileInfo = parameters.sharedFiles.get(oldName);
+
+						/** Does the old file still exist? */
+						if (fileInfo.getExists()) {
+							fileInfo.setExists(false);
+
+							/** Snapshot Update Needed */
+							NDNDropbox.updateNeeded = true;
+						}
+					}
+				}
 			}
 
 			public void fileModified(int wd, String rootPath, String name) {
-				//System.out.println("JNotifyTest.fileModified() : wd #" + wd + " root = " + rootPath + ", " + name);
 
-				// TODO Handle fileModified case
+				/** Add slash to Name */
+				name = "/" + name;
+
+				/** Create File Based on Event */
+				File file = new File(rootPath + name);
+
+				/** Does this File meet our criteria? */
+				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
+					try {
+						byte[] byteArray = FileUtils.readFileToByteArray(file);
+
+						MessageDigest md = MessageDigest.getInstance("SHA-1");
+
+						byte[] digest = md.digest(byteArray);
+
+						/** Have we seen it before? */
+						if (parameters.sharedFiles.containsKey(name)) {
+							FileInformation fileInfo = parameters.sharedFiles.get(name);						
+
+							/** Is it untouched? */
+							if(!fileInfo.getFlag()) {
+								/** Have we seen this digest? */
+								if (fileInfo.getLocalDigest() != null) {
+
+									/** Are the Digests Equal? */
+									if (!MessageDigest.isEqual(fileInfo.getLocalDigest(), digest)) {
+
+										/** Reconcile */
+										Runnable runnable = new ReconcileThread(file, name, parameters);
+										parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
+									}
+								}
+							}
+						}
+
+					}
+					catch (NoSuchAlgorithmException e) {
+						e.printStackTrace();
+					} 
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
 			}
 
 			public void fileDeleted(int wd, String rootPath, String name) {
-				//System.out.println("JNotifyTest.fileDeleted() : wd #" + wd + " root = " + rootPath + ", " + name);
+				/** Add Slash to Name */
+				name = "/" + name;
 
-				// TODO Handle fileDeleted case
-				name = "/" + name; // Add slash
-				
-				if(name.endsWith("/")) {
-					name = name.substring(0, name.length()-1);
-				}
-				
-				if (sharedFiles.containsKey(name) && sharedFiles.get(name).getExists() == true) {
-					NDNDropbox.updateNeeded = true;
-					sharedFiles.get(name).setExists(false);	
-				}
-				else {
-					System.out.println("File Deleted was not known.");
+				/** Does this file exist? */
+				if(parameters.sharedFiles.containsKey(name)) {
+					if (parameters.sharedFiles.containsKey(name) && parameters.sharedFiles.get(name).getExists()) {
+						parameters.sharedFiles.get(name).setExists(false);	
+
+						/** Snapshot Update Needed */
+						NDNDropbox.updateNeeded = true;
+					}
 				}
 			}
 
 			public void fileCreated(int wd, String rootPath, String name) {
-				//System.out.println("JNotifyTest.fileCreated() : wd #" + wd + " root = " + rootPath + ", " + name);
+				/** Add Slash to Name */
+				name = "/" + name;
+
+				/** Create File Based on Event */
+				File file = new File(rootPath + name);
 				
-				/** Add File to Local Shared Files */
-				name = "/" + name; // Add slash
-				
-				if (sharedFiles.containsKey(name) && sharedFiles.get(name).getExists() == false) {
-					sharedFiles.get(name).setExists(true);
-					Runnable runnable = new FileCreatedThread(wd, rootPath, name, namespace, sharedFiles, putHandle);
-					taskProgress.add(putFileThreadPool.submit(runnable));
+				/** Does this File meet our criteria? */
+				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
+					/** Reconcile */
+					Runnable runnable = new ReconcileThread(file, name, parameters);
+					parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
+
+					/** Snapshot Update Needed */
 					NDNDropbox.updateNeeded = true;
 				}
-				else if (!sharedFiles.containsKey(name)) {
-					Runnable runnable = new FileCreatedThread(wd, rootPath, name, namespace, sharedFiles, putHandle);
-					taskProgress.add(putFileThreadPool.submit(runnable));
-					NDNDropbox.updateNeeded = true;
-				}
-				else {
-					// Do Nothing
-				}			
 			}
 		});
 	}

@@ -1,12 +1,6 @@
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
-import org.ccnx.ccn.CCNHandle;
-import org.ccnx.ccn.config.ConfigurationException;
 import org.ccnx.ccn.io.content.ConfigSlice;
 import org.ccnx.ccn.protocol.ContentName;
 import org.ccnx.ccn.protocol.MalformedContentNameStringException;
@@ -25,63 +19,43 @@ import org.ccnx.ccn.protocol.MalformedContentNameStringException;
  * to create snapshots.
  */
 public class NDNDropbox {
-	static volatile int snapshotVersion = 0;
 	static volatile boolean updateNeeded = false;
 	
 	public static void main (String[] args) {
-		/** Global Knowledge of Local Shared Folder
-		 *  Using HashTable for fast, synchronized lookup */
-		Hashtable<String, FileInformation> sharedFiles = new Hashtable<String, FileInformation>();
+		/** Check Parameters */
+		if (args.length != 4) {
+			System.out.println("Invalid number of Parameters");
+			System.out.println("Usage: NDNDropbox <shared dir> <repository dir> <topology> <namespace>");
+			System.out.println("Also, make sure JNotify is in your java.library.path!");
+			return;
+		}
 		
-		/** Defining Location Specifics */	
-		String sharedPath = "/home/jared/Desktop/Shared";
-		String repositoryPath = "/home/jared/Desktop/Repository";
-		String topology = "/Topo";
-		String namespace = "/root/beer";
-		String snapshot = namespace + "/snapshot";
-		
-		/** Defining Communication Handles */
-		CCNHandle putHandle, getHandle;
-		
-		/** Defining ThreadPools */ 
-		final int numThreads = 20;
-		ExecutorService putFileThreadPool = Executors.newFixedThreadPool(numThreads);
-		ExecutorService getFileThreadPool = Executors.newFixedThreadPool(numThreads);
-		ArrayList<Future> taskProgress = new ArrayList<Future>();		
-		
-		/** Build Local Shared Folder HashTable */
-		InitialScan.ScanFiles(sharedPath, sharedFiles);
-		
-		/** Register for Namespace updates */
+		/** Initialize Parameters */
+		Parameters parameters = new Parameters(args[0], args[1], args[2], args[3]);			
+			
+		/** Add Listener to Global Snapshot */
 		try {
-			/** Get Handle */
-			getHandle = CCNHandle.open();
+			GlobalSnapshotUpdateListener gsul = new GlobalSnapshotUpdateListener(parameters);
+			parameters.globalSnapshotObject.updateInBackground(true, gsul);
 			
-			/** Create Prefix (Namespace) to Monitor */
-			ContentName prefix = ContentName.fromNative(snapshot);
-			
-			/** Register for Name Enumerations */
-			FileNameEnumerator fileNameEnumerator = new FileNameEnumerator(sharedPath, sharedFiles, namespace, snapshot, getHandle, getFileThreadPool);
-			fileNameEnumerator.registerPrefix(prefix);
-		} catch (MalformedContentNameStringException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (ConfigurationException e) {
+			if(parameters.globalSnapshotObject.available()) {
+				gsul.newVersionAvailable(parameters.globalSnapshotObject, false);
+			}
+		} 
+		catch (IOException e) {
 			e.printStackTrace();
 		}
-		/** End Register for Namespace updates */
 		
-		/** Create Slice, Start Jnotfiy */
-		try {
-			/** Get Handle */
-			putHandle = CCNHandle.open();
-			
+		/** Build Local Shared Folder HashTable */
+		//Startup.Populate(parameters.getSharedPath(), parameters);
+		
+		/** Create Slice, Start Jnotify */
+		try {	
 			/** Create Slice */
-			ConfigSlice.checkAndCreate(ContentName.fromNative(topology), ContentName.fromNative(namespace), null, putHandle);
+			ConfigSlice.checkAndCreate(ContentName.fromNative(parameters.getTopology()), ContentName.fromNative(parameters.getNamespace()), null, parameters.putHandle());
 			
 			/** Create Instance of JNotify */
-			FolderWatch folderWatch = new FolderWatch(sharedPath, sharedFiles, namespace, putHandle, putFileThreadPool, taskProgress);
+			FolderWatch folderWatch = new FolderWatch(parameters);
 			
 			/** Start JNotify */
 			folderWatch.startJNotify();
@@ -90,24 +64,26 @@ public class NDNDropbox {
 			while(true) {
 				/** Snapshot update needed? */
 				if (updateNeeded) {
-					System.out.println("Updating!");
-					synchronized(taskProgress) {
+					synchronized(parameters.taskProgress) {
 						updateNeeded = false;
-						Runnable runnable = new GlobalSnapshotThread(snapshot, sharedFiles, putHandle, new ArrayList<Future>(taskProgress));
-						putFileThreadPool.submit(runnable);
-						taskProgress.removeAll(taskProgress);
+						
+						@SuppressWarnings("rawtypes")
+						Runnable runnable = new GlobalSnapshotThread(parameters, new ArrayList<Future>(parameters.taskProgress));
+						
+						parameters.putFileThreadPool.submit(runnable);
+						parameters.taskProgress.removeAll(parameters.taskProgress);
 					}
 				}
-				Thread.sleep(3000);
+				Thread.sleep(2000);
 			}
-		} catch (ConfigurationException e) {
+		} 
+		catch (IOException e) {
 			e.printStackTrace();
-		} catch (IOException e) {
+		} 
+		catch (MalformedContentNameStringException e) {
 			e.printStackTrace();
-		} catch (MalformedContentNameStringException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
+		} 
+		catch (InterruptedException e) {
 			e.printStackTrace();
 		} 
 	}	

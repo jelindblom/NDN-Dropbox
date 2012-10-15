@@ -3,9 +3,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.ccnx.ccn.CCNHandle;
+import org.ccnx.ccn.io.ErrorStateException;
 import org.ccnx.ccn.io.content.CCNNetworkObject;
 import org.ccnx.ccn.io.content.ContentDecodingException;
 import org.ccnx.ccn.io.content.ContentEncodingException;
+import org.ccnx.ccn.io.content.ContentGoneException;
+import org.ccnx.ccn.io.content.ContentNotReadyException;
 import org.ccnx.ccn.protocol.ContentName;
 
 /**
@@ -22,9 +25,8 @@ import org.ccnx.ccn.protocol.ContentName;
  */
 public class CCNFileObject extends CCNNetworkObject<byte[]> {
 	
-	public CCNFileObject(Class<byte[]> type, boolean contentIsMutable, ContentName name, CCNHandle handle, byte[] data) throws ContentDecodingException, IOException {
-		super(type, contentIsMutable, name, handle);
-		setData(data);
+	public CCNFileObject(ContentName name, CCNHandle handle) throws ContentDecodingException, IOException {
+		super(byte[].class, true, name, handle);
 	}
 
 	@Override
@@ -32,12 +34,20 @@ public class CCNFileObject extends CCNNetworkObject<byte[]> {
 		/** InputStream to byte[] */	
 		byte[] temp = new byte[arg0.available()];
 		arg0.read(temp);
+		arg0.close();
+		
 		return temp;
 	}
 
 	@Override
 	protected void writeObjectImpl(OutputStream arg0) throws ContentEncodingException, IOException {
 		/** byte[] to OutputStream */
-		arg0.write(data());		
+		arg0.write(data());
+		arg0.close();
+	}
+	
+	public byte[] contents() throws ContentNotReadyException, ContentGoneException, ErrorStateException {
+		/** Return Data */
+		return data();
 	}
 }
