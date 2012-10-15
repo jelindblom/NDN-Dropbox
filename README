@@ -1,0 +1,30 @@
+NDNDropbox: P2P File Sharing Service over NDN
+
+Intro/Motivation:
+
+We developed a distributed file sharing application that runs over NDN.  This distributed service is in contrast to centralized services such as FTP and Dropbox which are vulnerable to a single point of failure and have inefficent means of distributing information to multiple clients.  NDN Dropbox takes advantage of NDN's efficient means of content distribution and provides a peer to peer service to which users can share files.
+
+App Architecture:
+
+NDN Dropbox provides access to shared files across machines by mapping these files to a collection of versioned CCNNetworkObjects.  It synchronizes collections between machines using the CCNx Synchronization Protocol.  Each machine informs other machines of local changes to the collection in the form of a global snapshot.  In our current implementation, the most recent copy is chosen when a conflict occurs.
+
+Implementation:
+
+NDN Dropbox is written using the CCNx Java API and it uses the CCNx Synchronization Protocol.  Jnotify, a Java-based file system watcher, is used to monitor local changes made to shared files.  Thread pools are used to handle Jnotify events and hashtables are used to provide fast, synchronized lookup of file information.  NDN Dropbox currently supports the Linux and Mac environment.
+
+Usage:
+
+We recommend using Eclipse to run the program at this stage.  Under Project run configuration, add this VM argument: -Djava.library.path=./libs.  This resolves the JNotify native library dependency.  Under program arguments, please provide the following: <shared dir> <repository dir> <topology> <namespace>.  An example of possible arguments are the following:
+
+/home/jared/Desktop/Shared /home/jared/Repository /ndn/ucla.edu /dropbox
+
+where:
+
+<shared dir> : /home/jared/Desktop/Shared
+<repository dir> : /home/jared/Repository
+<topology> : /ndn/ucla.edu
+<namespace> : /dropbox
+
+IMPORTANT: Each computer wishing to share files must use the SAME topology and namespace as each other computer.  Also, make sure each ccnd points to one another.  This can be attained by adding an entry for each computer in ccnd.conf under ~/ccnd.  
+
+
