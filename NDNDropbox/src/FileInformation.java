@@ -1,3 +1,5 @@
+import org.ccnx.ccn.protocol.ContentName;
+
 /**
  * NDN Dropbox: Distributed, Dropbox-like File Sharing Service over NDN
  *  
@@ -5,44 +7,59 @@
  * @author Jared Lindblom
  * @author Huang (John) Ming-Chun
  * @version 1.0
- * 
- * This class holds file information like version, if it exists or not, and 
- * the sha1 of the file's content.  It is used by the hashtable, sharedFiles, 
- * to maintain a local snapshot of the shared folder directory.
  */
 public class FileInformation {
-	private boolean exists, beingModified;
-	private byte[] localDigest;
-	CCNFileObject networkObject;
-	
-	public FileInformation(boolean exists, CCNFileObject networkObject) {
+	private ContentName contentName, versionedContentName;
+	private boolean exists, isBeingModified;
+	private String fileName, latestDigest;
+		
+	public FileInformation(String fileName, ContentName contentName, boolean exists, ContentName versionedContentName, String latestDigest) {
+		this.fileName = fileName;
+		this.contentName = contentName;
 		this.exists = exists;
-		this.beingModified = false;
-		this.localDigest = null;
-		this.networkObject = networkObject;
+		
+		this.isBeingModified = false;
+		this.versionedContentName = versionedContentName;
+		this.latestDigest = latestDigest;
 	}
 	
-	public boolean getExists() {
+	public String getFileName() {
+		return fileName;
+	}
+	
+	public ContentName getContentName() {
+		return contentName;
+	}
+	
+	public boolean getExistence() {
 		return exists;
 	}
 	
-	public boolean getFlag() {
-		return beingModified;
+	public ContentName getVersionedContentName() {
+		return versionedContentName;
 	}
 	
-	public byte[] getLocalDigest() {
-		return localDigest;
+	public String getLatestDigest() {
+		return latestDigest;
 	}
 	
-	public void setExists(boolean exists) {
+	public boolean getModifiedState() {
+		return isBeingModified;
+	}
+	
+	public void setExistence(boolean exists) {
 		this.exists = exists;
 	}
 	
-	public void setFlag(boolean beingModified) {
-		this.beingModified = beingModified;
+	public void setVersionedContentName(ContentName versionedContentName) {
+		this.versionedContentName = versionedContentName;
 	}
 	
-	public void setLocalDigest(byte[] localDigest) {
-		this.localDigest = localDigest;
+	public void setLatestDigest(String latestDigest) {
+		this.latestDigest = latestDigest;
+	}
+	
+	public void setModifyState(boolean isBeingModified) {
+		this.isBeingModified = isBeingModified;
 	}
 }

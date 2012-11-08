@@ -1,9 +1,9 @@
 import java.io.File;
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
-import org.apache.commons.io.FileUtils;
+import org.ccnx.ccn.profiles.VersioningProfile;
+import org.ccnx.ccn.protocol.ContentName;
+import org.ccnx.ccn.protocol.MalformedContentNameStringException;
 
 import net.contentobjects.jnotify.JNotify;
 import net.contentobjects.jnotify.JNotifyException;
@@ -16,10 +16,6 @@ import net.contentobjects.jnotify.JNotifyListener;
  * @author Jared Lindblom
  * @author Huang (John) Ming-Chun
  * @version 1.0
- * 
- * This class is used as an interface to the Jnotify library.  It defines how
- * a Jnotify event is to be handled by our program, when such an event occurs.
- * When needed, it spawns "file created" threads to upload content to the repository.
  */
 public class FolderWatch {
 	private int watchID;
@@ -35,156 +31,203 @@ public class FolderWatch {
 
 		boolean watchSubtree = true;  // Recursive
 
-		watchID = JNotify.addWatch(parameters.getSharedPath(), mask, watchSubtree, new JNotifyListener() {
+		watchID = JNotify.addWatch(parameters.getSharedDirectoryPath(), mask, watchSubtree, new JNotifyListener() {
 			public void fileRenamed(int wd, String rootPath, String oldName, String newName) {
-				/** Add Slash to Names */
-				oldName = "/" + oldName;
-				newName = "/" + newName;
-				
-				/** Create File based on Event */
-				File file = new File(rootPath + newName);
+				System.out.println("Jnotify: File " + oldName + " renamed to " + newName + ".");
 
-				/** Does this File meet our criteria? */
-				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
-					try {
-						byte[] byteArray = FileUtils.readFileToByteArray(file);
+				contentRemoved(wd, rootPath, oldName);
 
-						MessageDigest md = MessageDigest.getInstance("SHA-1");
-
-						byte[] digest = md.digest(byteArray);
-
-						/** Have we seen it before? */
-						if (parameters.sharedFiles.containsKey(newName)) {
-							FileInformation fileInfo = parameters.sharedFiles.get(newName);						
-
-							/** Is it untouched? */
-							if(!fileInfo.getFlag()) {
-								/** Have we seen this digest? */
-								if (fileInfo.getLocalDigest() != null) {
-									/** Are the Digests Equal? */
-									if (!MessageDigest.isEqual(fileInfo.getLocalDigest(), digest)) {
-
-										/** Reconcile */
-										Runnable runnable = new ReconcileThread(file, newName, parameters);
-										parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
-									}
-								}
-							}
-						}
-						else {
-
-							/** Reconcile */
-							Runnable runnable = new ReconcileThread(file, newName, parameters);
-							parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
-
-							/** Snapshot Update Needed */
-							NDNDropbox.updateNeeded = true;
-						}					
-					} 
-					catch (NoSuchAlgorithmException e) {
-						e.printStackTrace();
-					} 
-					catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-
-				/** Delete Content under Old Name */
-				if (!oldName.equalsIgnoreCase("/null")) {
-					if(parameters.sharedFiles.containsKey(oldName)) {
-						FileInformation fileInfo = parameters.sharedFiles.get(oldName);
-
-						/** Does the old file still exist? */
-						if (fileInfo.getExists()) {
-							fileInfo.setExists(false);
-
-							/** Snapshot Update Needed */
-							NDNDropbox.updateNeeded = true;
-						}
-					}
-				}
+				contentAddedOrUpdated(wd, rootPath, newName);
 			}
 
 			public void fileModified(int wd, String rootPath, String name) {
-
-				/** Add slash to Name */
-				name = "/" + name;
-
-				/** Create File Based on Event */
-				File file = new File(rootPath + name);
-
-				/** Does this File meet our criteria? */
-				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
-					try {
-						byte[] byteArray = FileUtils.readFileToByteArray(file);
-
-						MessageDigest md = MessageDigest.getInstance("SHA-1");
-
-						byte[] digest = md.digest(byteArray);
-
-						/** Have we seen it before? */
-						if (parameters.sharedFiles.containsKey(name)) {
-							FileInformation fileInfo = parameters.sharedFiles.get(name);						
-
-							/** Is it untouched? */
-							if(!fileInfo.getFlag()) {
-								/** Have we seen this digest? */
-								if (fileInfo.getLocalDigest() != null) {
-
-									/** Are the Digests Equal? */
-									if (!MessageDigest.isEqual(fileInfo.getLocalDigest(), digest)) {
-
-										/** Reconcile */
-										Runnable runnable = new ReconcileThread(file, name, parameters);
-										parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
-									}
-								}
-							}
-						}
-
-					}
-					catch (NoSuchAlgorithmException e) {
-						e.printStackTrace();
-					} 
-					catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
+				System.out.println("Jnotify: File " + name + " modified.");
+				contentAddedOrUpdated(wd, rootPath, name);
 			}
 
 			public void fileDeleted(int wd, String rootPath, String name) {
-				/** Add Slash to Name */
-				name = "/" + name;
-
-				/** Does this file exist? */
-				if(parameters.sharedFiles.containsKey(name)) {
-					if (parameters.sharedFiles.containsKey(name) && parameters.sharedFiles.get(name).getExists()) {
-						parameters.sharedFiles.get(name).setExists(false);	
-
-						/** Snapshot Update Needed */
-						NDNDropbox.updateNeeded = true;
-					}
-				}
+				System.out.println("Jnotify: File " + name + " deleted.");
+				contentRemoved(wd, rootPath, name);
 			}
 
 			public void fileCreated(int wd, String rootPath, String name) {
-				/** Add Slash to Name */
-				name = "/" + name;
-
-				/** Create File Based on Event */
-				File file = new File(rootPath + name);
-				
-				/** Does this File meet our criteria? */
-				if (file.isFile() && !file.isHidden() && !file.getAbsolutePath().endsWith("~") && file.canRead()) {
-					/** Reconcile */
-					Runnable runnable = new ReconcileThread(file, name, parameters);
-					parameters.taskProgress.add(parameters.putFileThreadPool.submit(runnable));
-
-					/** Snapshot Update Needed */
-					NDNDropbox.updateNeeded = true;
-				}
+				System.out.println("Jnotify: File " + name + " created.");
+				contentAddedOrUpdated(wd, rootPath, name);
 			}
 		});
+	}
+
+
+	public void contentRemoved(int wd, String rootPath, String name) {
+		/** Build File Name String */
+		String fileNameString = getFileNameString(name);
+
+		/** Has Criteria been met? */
+		if (checkRemovedCriteria(fileNameString)) {
+			Runnable runnable = new ContentRemovedThread(fileNameString, parameters);
+			parameters.taskProgress.add(parameters.threadPool.submit(runnable));
+		}
+	}
+
+	public void contentAddedOrUpdated(int wd, String rootPath, String name) {
+		/** Build File Name String */
+		String fileNameString = getFileNameString(name);
+
+		try {
+			/** Create File Based on Event */
+			File file = new File(rootPath + fileNameString);
+
+			/** Does this File meet our criteria? */
+			if (checkAddedOrUpdatedCriteria(file, fileNameString)) {
+				FileInformation fileInfo = null;
+
+				if (parameters.containsKeyInSharedFiles(fileNameString)) {
+					fileInfo = parameters.getFromSharedFiles(fileNameString);
+
+					/** Check If file is being modified by our program */
+					if (!fileInfo.getModifiedState()) {
+
+						/** If Doesn't Exist, Make it Exist */
+						if (!fileInfo.getExistence()) {
+							fileInfo.setExistence(true);
+						}
+
+						/** Calculate Content Checksum */
+						String digest = MD5Checksum.getMD5Digest(file);
+
+						/** Add Digest to File Information */
+						if (!digest.equalsIgnoreCase(fileInfo.getLatestDigest())) {
+							fileInfo.setLatestDigest(digest);
+
+							/** Add Version to Content Name */
+							ContentName versionedContentName = VersioningProfile.updateVersion(fileInfo.getContentName());
+
+							/** Update FileInformation with Current Version */
+							fileInfo.setVersionedContentName(versionedContentName);
+
+							/** Dispatch to Update Content */
+							Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, versionedContentName, parameters);
+							parameters.taskProgress.add(parameters.threadPool.submit(runnable));
+						}
+					}
+					else {
+						System.out.println(fileNameString + " is being modified. Ignoring.");
+					}
+				}
+				else {
+					/** Get Content Name */
+					ContentName contentName = parameters.getContentNameFromFileName(fileNameString);
+
+					/** Calculate Content Checksum */
+					String digest = MD5Checksum.getMD5Digest(file);
+					
+					/** Add Version to Content Name */
+					ContentName versionedContentName = VersioningProfile.updateVersion(contentName);
+
+					/** Create FileInformation */
+					fileInfo = new FileInformation(fileNameString, contentName, true, versionedContentName, digest);
+					parameters.addToSharedFiles(fileNameString, fileInfo);
+					
+					/** Dispatch to Update Content */
+					Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, versionedContentName, parameters);
+					parameters.taskProgress.add(parameters.threadPool.submit(runnable));
+				}
+			}		
+		} 
+		catch (MalformedContentNameStringException e) {
+			e.printStackTrace();
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public String getFileNameString(String name) {
+		/** Build File Name String */
+		//return ("/" + name);
+		name = "/" + name;
+
+		return name;
+	}
+
+	public boolean checkRemovedCriteria(String fileNameString) {
+		boolean passCriteria = false;
+
+		if (parameters.containsKeyInSharedFiles(fileNameString)) {
+			FileInformation fileInfo = parameters.getFromSharedFiles(fileNameString);
+
+			if (fileInfo.getExistence()) {
+				System.out.println(fileNameString + " passed criteria.");
+				passCriteria = true;
+			}
+			else {
+				System.out.println(fileNameString + " should not exist. Ignoring.");
+			}
+		}
+		else {
+			/** BugFix: Ubuntu 12.04 */
+			if (fileNameString.endsWith("/")) {
+				fileNameString = fileNameString.substring(0, fileNameString.length() - 1);
+				System.out.println("Removed Slash: " + fileNameString);
+				
+				if (parameters.containsKeyInSharedFiles(fileNameString)) {
+					FileInformation fileInfo = parameters.getFromSharedFiles(fileNameString);
+
+					if (fileInfo.getExistence()) {
+						System.out.println(fileNameString + " passed criteria.");
+						passCriteria = true;
+					}
+					else {
+						System.out.println(fileNameString + " should not exist. Ignoring.");
+					}
+				}
+				else {
+					System.out.println(fileNameString + " is not a shared file. Ignoring.");
+				}
+			}
+			else {
+				System.out.println(fileNameString + " is not a shared file. Ignoring.");
+			}
+		}
+
+		return passCriteria;
+	}
+
+	public boolean checkAddedOrUpdatedCriteria(File file, String fileNameString) {
+		boolean passCriteria = false;
+
+		if (file.isFile()) {
+			if(!file.isHidden()) {
+				if (!file.getAbsolutePath().endsWith("~")) {
+					if (!fileNameString.endsWith("/")) {
+						if (file.canRead()) {
+							System.out.println(fileNameString + " passed criteria.");
+							passCriteria = true;
+						}
+						else {
+							System.out.println(fileNameString + " cannot be read. Ignoring.");
+						}
+					}
+					else {
+						System.out.println(fileNameString + " is incorrectly formatted. Ignoring.");
+					}
+				}
+				else {
+					System.out.println(fileNameString + " is a temporary file. Ignoring.");
+				}
+			}
+			else {
+				System.out.println(fileNameString + " is hidden. Ignoring.");
+			}
+		}
+		else {
+			System.out.println(fileNameString + " is not a file. Ignoring.");
+		}
+
+		return passCriteria;
 	}
 
 	public void stopJNotify() throws JNotifyException {

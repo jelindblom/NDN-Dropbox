@@ -1,143 +1,139 @@
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-import org.ccnx.ccn.impl.CCNFlowControl.SaveType;
-import org.ccnx.ccn.io.ErrorStateException;
-import org.ccnx.ccn.io.content.CCNNetworkObject;
-import org.ccnx.ccn.io.content.ContentGoneException;
-import org.ccnx.ccn.io.content.ContentNotReadyException;
-import org.ccnx.ccn.io.content.UpdateListener;
+import org.ccnx.ccn.io.CCNVersionedInputStream;
 import org.ccnx.ccn.protocol.ContentName;
 import org.ccnx.ccn.protocol.MalformedContentNameStringException;
 
-public class GlobalSnapshotUpdateListener implements UpdateListener {
+/**
+ * NDN Dropbox: Distributed, Dropbox-like File Sharing Service over NDN
+ *  
+ * @category Distributed File Sharing
+ * @author Jared Lindblom
+ * @author Huang (John) Ming-Chun
+ * @version 1.0
+ */
+public class GlobalSnapshotUpdateListener implements Runnable {
 	private Parameters parameters;
+	private ContentName snapshotVersion;
 
-	public GlobalSnapshotUpdateListener (Parameters parameters) {
+	public GlobalSnapshotUpdateListener (ContentName snapshotVersion, Parameters parameters) {
+		this.snapshotVersion = snapshotVersion;
 		this.parameters = parameters;
 	}
 
 	@Override
-	public void newVersionAvailable(CCNNetworkObject<?> arg0, boolean arg1) {
-		CCNFileObject newVersion = (CCNFileObject) arg0;
-
+	public void run() {
 		try {
-			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(newVersion.contents())));
+			/** De-bounce */
+			Thread.sleep(250);
+			
+			/** Create Input Stream	 */
+			CCNVersionedInputStream inputStream = new CCNVersionedInputStream(snapshotVersion);
+
+			BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
 
 			String line = bufferedReader.readLine();
 
 			while (line != null) {
 				String[] values = line.split(",");
 
-				if (values[0].equals("true")) { // File Exists
-					if (!parameters.sharedFiles.containsKey(values[1])) {
-						/** Create NetworkObject */
-						
-						try {
-							CCNFileObject networkObject = new CCNFileObject(ContentName.fromNative(parameters.getNamespace() + values[1]), parameters.getHandle());
+				if (values.length == 4) {
+					String fileNameString = values[0], versionedContentNameURI = values[2], latestDigest = values[3];
 
-							/** Setup Save to Repository */
-							networkObject.setupSave(SaveType.REPOSITORY);
-							
-							parameters.sharedFiles.put(values[1], new FileInformation(true, networkObject));
+					/** Build Versioned Content Name */
+					ContentName versionedContentName = ContentName.fromURI(versionedContentNameURI);
 
-							/** Add Listener */
-							try {
-								FileUpdateListener listener = new FileUpdateListener(parameters, values[1]);
-								networkObject.updateInBackground(true, listener);
+					boolean existence = false;
 
-								if(networkObject.available()) {
-									listener.newVersionAvailable(networkObject, true);
+					if (values[1].equalsIgnoreCase("true")) {
+						existence = true;
+					}
+
+					FileInformation fileInfo;
+
+					if (parameters.containsKeyInSharedFiles(fileNameString)) {  /** Hashtable Hit (We know about this file) */
+						fileInfo = parameters.getFromSharedFiles(fileNameString);
+
+						if (existence) { /** Local File Should Exist */
+							if (fileInfo.getExistence()) { /** Hashtable says file exists */
+								if(fileInfo.getVersionedContentName().toURIString().equalsIgnoreCase(versionedContentNameURI)) {
+									/** No Update Needed */
 								}
-							} 
-							catch (IOException e) {
-								e.printStackTrace();
-							}
-						} 
-						catch (MalformedContentNameStringException e) {
-							e.printStackTrace();
-						}
-					}
-					else {
-						/** Add Listener */
-						if (!parameters.sharedFiles.get(values[1]).getExists()) {
-							parameters.sharedFiles.get(values[1]).setExists(true);
-							FileUpdateListener listener = new FileUpdateListener(parameters, values[1]);
-						
-							if(parameters.sharedFiles.get(values[1]).networkObject.available()) {
-								listener.newVersionAvailable(parameters.sharedFiles.get(values[1]).networkObject, true);
-							}
-						}
-					}
-				}
-				else { // File Does not exist
-					if (parameters.sharedFiles.containsKey(values[1])) { // Hashtable Hit
-						FileInformation fileInfo = parameters.sharedFiles.get(values[1]);
-						
-						if (fileInfo.getExists()) { // Hashtable says local file exists
-							fileInfo.networkObject.close();
-							fileInfo.setExists(false);
+								else {
+									/** Update Needed */
+									fileInfo.setVersionedContentName(versionedContentName);
+									fileInfo.setLatestDigest(latestDigest);
 
-							// Delete File from Shared Folder
-							File deleteFile = new File(parameters.getSharedPath() + values[1]);
-							//String parentDirectory = deleteFile.getParent();
-							
-							if (deleteFile.exists()) {
-								fileInfo.setFlag(true);
-								deleteFile.delete();
-								fileInfo.setFlag(false);	
-							}
-						}
-						else { // Hashtable says local file does not exist
-							// Nothing to Do
-						}
-					}
-					else { //Hashtable Miss (No Entry)
-						/** Create NetworkObject */
-						try {
-							CCNFileObject networkObject = new CCNFileObject(ContentName.fromNative(parameters.getNamespace() + values[1]), parameters.getHandle());
-
-							/** Setup Save to Repository */
-							networkObject.setupSave(SaveType.REPOSITORY);
-
-							parameters.sharedFiles.put(values[1], new FileInformation(false, networkObject));
-							
-							/** Add Listener */
-							try {
-								FileUpdateListener listener = new FileUpdateListener(parameters, values[1]);
-								networkObject.updateInBackground(true, listener);
-
-								if(networkObject.available()) {
-									listener.newVersionAvailable(networkObject, true);
+									Runnable runnable = new UpdateContentThread(fileNameString, versionedContentName, fileInfo, parameters);
+									parameters.threadPool.submit(runnable);
 								}
-							} 
-							catch (IOException e) {
-								e.printStackTrace();
 							}
-						} 
-						catch (MalformedContentNameStringException e) {
-							e.printStackTrace();
+							else { /** Hashtable says file does not exist */
+								/** File Now Exists */
+								fileInfo.setExistence(true);
+
+								/** Update Needed */
+								fileInfo.setVersionedContentName(versionedContentName);
+								fileInfo.setLatestDigest(latestDigest);
+
+								Runnable runnable = new UpdateContentThread(fileNameString, versionedContentName, fileInfo, parameters);
+								parameters.threadPool.submit(runnable);
+							}
+						}
+						else { /** Local File Should not Exist */
+							if (fileInfo.getExistence()) { /** Hashtable says file exists */
+								/** Delete Local File */
+								File file = new File(parameters.getSharedDirectoryPath() + fileNameString);
+
+								if (file.exists()) {
+									file.delete();
+								}
+							}
+							else { /** Hashtable says file does not exist */
+								/** No Update Needed */
+							}
 						}
 					}
+					else { /** Hashtable Miss (We don't know about this file) */
+						/** Get Content Name */
+						ContentName contentName = parameters.getContentNameFromFileName(fileNameString);
+
+						fileInfo = new FileInformation(fileNameString, contentName, existence, versionedContentName, latestDigest);
+
+						if (existence) { /** Local File Should Exist */
+							/** Update Needed */
+							Runnable runnable = new UpdateContentThread(fileNameString, versionedContentName, fileInfo, parameters);
+							parameters.threadPool.submit(runnable);
+						}
+						else { /** Local File Should not Exist */
+							/** No Update Needed */
+						}
+
+						parameters.addToSharedFiles(fileNameString, fileInfo);
+					}
+
+					line = bufferedReader.readLine();
 				}
-				
-				line = bufferedReader.readLine();
+				else {
+					System.out.println("Snapshot Format Issue on line: " + line);
+
+					line = bufferedReader.readLine();
+				}
 			}
-		} 
-		catch (ContentNotReadyException e) {
-			e.printStackTrace();
-		} 
-		catch (ContentGoneException e) {
-			e.printStackTrace();
-		} 
-		catch (ErrorStateException e) {
-			e.printStackTrace();
+			
+			bufferedReader.close();
 		} 
 		catch (IOException e) {
-			e.printStackTrace();
+		
+		}
+		catch (MalformedContentNameStringException e) {
+		
+		} 
+		catch (InterruptedException e) {
+		
 		}
 	}
 }

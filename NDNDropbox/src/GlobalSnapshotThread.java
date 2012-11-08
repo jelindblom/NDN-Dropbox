@@ -1,12 +1,14 @@
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.concurrent.Future;
+
+import org.ccnx.ccn.io.RepositoryVersionedOutputStream;
+import org.ccnx.ccn.profiles.VersioningProfile;
+import org.ccnx.ccn.protocol.ContentName;
 
 /**
  * NDN Dropbox: Distributed, Dropbox-like File Sharing Service over NDN
@@ -15,26 +17,16 @@ import java.util.concurrent.Future;
  * @author Jared Lindblom
  * @author Huang (John) Ming-Chun
  * @version 1.0
- * 
- * This class defines the thread used to upload a global snapshot
- * to ccnr.  This thread is delegated by the main class a certain number of 
- * "file created" threads to wait on before it uploads a new snapshot version 
- * reflecting the changes made by those threads.  This process helps lower the 
- * number of snapshots needed to be uploaded to ccnr by reflecting a batch of 
- * changes, rather than one change per snapshot.
  */
 public class GlobalSnapshotThread implements Runnable {
-	private Hashtable<String, FileInformation> sharedFiles;
+	private Parameters parameters;
 	
 	@SuppressWarnings("rawtypes")
 	private ArrayList<Future> taskProgress;
 	
-	private CCNFileObject globalSnapshotObject;
-
 	public GlobalSnapshotThread(Parameters parameters, @SuppressWarnings("rawtypes") ArrayList<Future> taskProgress) {
-		this.sharedFiles = parameters.sharedFiles;
+		this.parameters = parameters;
 		this.taskProgress = taskProgress;
-		this.globalSnapshotObject = parameters.globalSnapshotObject;
 	}
 
 	public void run() {
@@ -55,35 +47,40 @@ public class GlobalSnapshotThread implements Runnable {
 				}
 			}
 			
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(baos));
+			/** Add Version to Content Name */
+			ContentName snapshotVersion = VersioningProfile.updateVersion(parameters.getSnapshot());
 
-			Enumeration<String> keys = sharedFiles.keys();
+			/** Update FileInformation with Current Version */
+			parameters.setSnapshotVersion(snapshotVersion);
+			
+			/** Create Versioned Output Stream */
+			RepositoryVersionedOutputStream outputStream = new RepositoryVersionedOutputStream(snapshotVersion, parameters.getHandle());
+			
+			BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(outputStream));
 
-			synchronized(sharedFiles) {
+			Enumeration<String> keys = parameters.sharedFiles.keys();
+
+			synchronized(parameters.sharedFiles) {
 				while(keys.hasMoreElements()) {
 					String key = keys.nextElement(), result;
 					
-					FileInformation info = sharedFiles.get(key);
+					FileInformation info = parameters.sharedFiles.get(key);
 					
-					if (info.getExists()) {
-						result = "true," + key;
+					if (info.getExistence()) {
+						result = key + ",true," + info.getVersionedContentName().toURIString() + "," + info.getLatestDigest();
 					}
 					else {
-						result = "false," + key;
+						result = key + ",false," + info.getVersionedContentName().toURIString() + "," + info.getLatestDigest();
 					}
-					
-					System.out.println(result);
 					
 					bufferedWriter.write(result);
 					bufferedWriter.newLine();
 				}
 			}
+			/** Close Writer, Flush */
 			bufferedWriter.close();
-
-			byte[] snapshotArray = baos.toByteArray();
-
-			globalSnapshotObject.save(snapshotArray);
+			
+			outputStream.close();
 		} 
 		catch (IOException e) {
 			e.printStackTrace();

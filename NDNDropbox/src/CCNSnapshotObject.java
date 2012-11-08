@@ -18,14 +18,10 @@ import org.ccnx.ccn.protocol.ContentName;
  * @author Jared Lindblom
  * @author Huang (John) Ming-Chun
  * @version 1.0
- * 
- * This class defines our version of the CCNNetworkObject, called 
- * CCNFileObject.  It defines how our object is to be read from inputstreams
- * and written to outputstreams.
  */
-public class CCNFileObject extends CCNNetworkObject<byte[]> {
+public class CCNSnapshotObject extends CCNNetworkObject<byte[]> {
 	
-	public CCNFileObject(ContentName name, CCNHandle handle) throws ContentDecodingException, IOException {
+	public CCNSnapshotObject(ContentName name, CCNHandle handle) throws ContentDecodingException, IOException {
 		super(byte[].class, true, name, handle);
 	}
 
