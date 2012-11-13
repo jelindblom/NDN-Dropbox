@@ -23,7 +23,29 @@ When the program is executed, a GUI will appear and ask you to enter information
 <topology> : /ndn/ucla.edu
 <namespace> : /dropbox
 
-Once confirm is clicked, the GUI disappears, ccnd is started, ccnr is started in the specified repository directory, and a content slice is created in the repository with the specified topology and namespace.  
+Once confirm is clicked, the GUI disappears, ccnd is started, ccnr is started in the specified repository directory, and a content slice is created in the repository with the specified topology and namespace.
+
+IMPORTANT: If you have ccnd and/or ccnr already running, please comment out the following lines in the method RunProgram() in the file MainProgram.java:
+
+For ccnd:
+
+try {
+	Runtime.getRuntime().exec("ccndstop");
+	Runtime.getRuntime().exec("ccndstart");
+} catch (IOException e1) {
+	// TODO Auto-generated catch block
+	e1.printStackTrace();
+}
+
+For ccnr:
+
+try {
+	File tmpRepo = new File(repoDirectoryPath);		
+	FileUtils.cleanDirectory(tmpRepo);
+	Runtime.getRuntime().exec("ccnr",null, tmpRepo);
+} catch (IOException e2)
+	e2.printStackTrace();
+}
 
 From here, you may interact with the program by dragging and dropping, copy and pasting, creating or deleting files within the shared directory.  
 
