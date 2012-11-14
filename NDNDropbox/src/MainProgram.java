@@ -35,7 +35,9 @@ public class MainProgram {
 	}
 	
 	public void RunProgram() {
-		try {
+		/** Uncomment the following code for automatic execution of ccnd and ccnr */
+		
+		/*try {
 			Runtime.getRuntime().exec("ccndstop");
 			Runtime.getRuntime().exec("ccndstart");
 		} catch (IOException e1) {
@@ -48,7 +50,8 @@ public class MainProgram {
 			Runtime.getRuntime().exec("ccnr",null, tmpRepo);
 		} catch (IOException e2) {
 			e2.printStackTrace();
-		}
+		}*/
+		
 		System.out.println("Bootstrap End");
 				
 		/** Initialize Parameters */		
