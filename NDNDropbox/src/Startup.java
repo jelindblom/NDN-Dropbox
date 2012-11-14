@@ -72,7 +72,7 @@ public class Startup {
 							fileInfo.setVersionedContentName(versionedContentName);
 
 							/** Dispatch to Update Content */
-							Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, versionedContentName, parameters);
+							Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, fileInfo, versionedContentName, parameters);
 							parameters.taskProgress.add(parameters.threadPool.submit(runnable));
 						}
 					}
@@ -95,7 +95,7 @@ public class Startup {
 					parameters.addToSharedFiles(fileNameString, fileInfo);
 					
 					/** Dispatch to Update Content */
-					Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, versionedContentName, parameters);
+					Runnable runnable = new ContentUpdatedThread(rootPath + fileNameString, fileInfo, versionedContentName, parameters);
 					parameters.taskProgress.add(parameters.threadPool.submit(runnable));
 				}
 			}

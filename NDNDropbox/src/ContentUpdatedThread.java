@@ -16,10 +16,12 @@ import org.ccnx.ccn.protocol.ContentName;
 public class ContentUpdatedThread implements Runnable {
 	private ContentName versionedContentName;
 	private Parameters parameters;
+	private FileInformation fileInfo;
 	private String filePath;
 
-	public ContentUpdatedThread(String filePath, ContentName versionedContentName, Parameters parameters) {
+	public ContentUpdatedThread(String filePath, FileInformation fileInfo, ContentName versionedContentName, Parameters parameters) {
 		this.filePath = filePath;
+		this.fileInfo = fileInfo;
 		this.versionedContentName = versionedContentName;
 		this.parameters = parameters;
 	}
@@ -28,6 +30,11 @@ public class ContentUpdatedThread implements Runnable {
 		try {
 			/** De-bounce */
 			Thread.sleep(250);
+			
+			/** Mac Bug Fix: */
+			if (!fileInfo.getExistence()) {
+				fileInfo.setExistence(true);
+			}
 			
 			/** Create Versioned Output Stream */
 			RepositoryVersionedOutputStream outputStream = new RepositoryVersionedOutputStream(versionedContentName, parameters.getHandle());
