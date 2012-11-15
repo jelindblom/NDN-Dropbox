@@ -14,6 +14,8 @@ NDN Dropbox is written using the CCNx Java API and it uses the CCNx Synchronizat
 
 Usage:
 
+IMPORTANT: We recommend that you create a separate "test" shared directory, independent of any important folders or files to test our application.  Please make sure that anything you add to the shared directory monitored by our application is either not important, or has been backed up in another safe location.  Our application creates, modifies and deletes files within the shared directory it monitors based on changes made to shared directories on other machines.    
+
 Our application can be compiled and executed in two ways: Using the Eclipse environment or the command line.  
 
 Command Line (Recommended):
