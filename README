@@ -14,18 +14,43 @@ NDN Dropbox is written using the CCNx Java API and it uses the CCNx Synchronizat
 
 Usage:
 
-We recommend using Eclipse to run the program at this stage.  Under Project run configuration, add this VM argument: -Djava.library.path=./libs.  This resolves the JNotify native library dependency.  Please make sure the main class of the project is NDNDriveGUI.  
+Our application can be compiled and executed in two ways: Using the Eclipse environment or the command line.  
+
+Command Line (Recommended):
+
+Change Directory to NDN-Dropbox:
+	
+	cd [Git Repository Directory]\NDN-Dropbox
+
+Elevate Permissions for two Shell Scripts:
+
+	chmod a+x compile.sh
+	chmod a+x execute.sh
+
+Compile the Application:
+
+	./compile.sh
+
+Execute the Application:
+
+	./execute.sh
+
+Eclipse Environment:
+
+Import the NDNDropbox Project into Eclipse.  Under Project run configuration, add this VM argument: -Djava.library.path=./libs.  This resolves the JNotify native library dependency.  Please make sure the main class of the project is NDNDriveGUI.  
+
+Interacting with the Application:
 
 When the program is executed, a GUI will appear and ask you to enter information, example input follows:
 
-<shared dir> : /home/jared/Desktop/Shared
 <repository dir> : /home/jared/Repository
+<shared dir> : /home/jared/Desktop/Shared
 <topology> : /ndn/ucla.edu
 <namespace> : /dropbox
 
-Once confirm is clicked, the GUI disappears, ccnd is started, ccnr is started in the specified repository directory, and a content slice is created in the repository with the specified topology and namespace.
+Once confirm is clicked the GUI disappears and the application starts running.
 
-IMPORTANT: If you have ccnd and/or ccnr already running, please comment out the following lines in the method RunProgram() in the file MainProgram.java:
+IMPORTANT: If you would like to have ccnd and/or ccnr start with the application automatically, please uncomment the following lines in the method RunProgram() in the file MainProgram.java:
 
 For ccnd:
 
@@ -47,7 +72,7 @@ try {
 	e2.printStackTrace();
 }
 
-From here, you may interact with the program by dragging and dropping, copy and pasting, creating or deleting files within the shared directory.  
+Once the application is executed, you may interact with it by dragging and dropping, copy and pasting, creating or deleting files within the shared directory you defined earlier.  
 
 IMPORTANT: Each computer wishing to share files must use the SAME topology and namespace as each other computer.  Also, make sure each ccnd points to one another.  This can be attained by adding an entry for each computer in ccnd.conf under ~/ccnd.
 

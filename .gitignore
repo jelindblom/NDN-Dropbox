@@ -1,2 +1,5 @@
-# ignore bin directory
-bin/
+# ignore compiled files
+*.class
+
+# ignore jar files
+*.jar
