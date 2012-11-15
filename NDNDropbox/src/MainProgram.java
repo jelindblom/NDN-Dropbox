@@ -42,8 +42,7 @@ public class MainProgram {
 			e1.printStackTrace();
 		}
 		try {
-			File tmpRepo = new File(repoDirectoryPath);		
-			FileUtils.cleanDirectory(tmpRepo);
+			File tmpRepo = new File(repoDirectoryPath);
 			Runtime.getRuntime().exec("ccnr",null, tmpRepo);
 		} catch (IOException e2) {
 			e2.printStackTrace();

@@ -67,8 +67,7 @@ try {
 For ccnr:
 
 try {
-	File tmpRepo = new File(repoDirectoryPath);		
-	FileUtils.cleanDirectory(tmpRepo);
+	File tmpRepo = new File(repoDirectoryPath);
 	Runtime.getRuntime().exec("ccnr",null, tmpRepo);
 } catch (IOException e2)
 	e2.printStackTrace();
@@ -77,6 +76,10 @@ try {
 Once the application is executed, you may interact with it by dragging and dropping, copy and pasting, creating or deleting files within the shared directory you defined earlier.  
 
 IMPORTANT: Each computer wishing to share files must use the SAME topology and namespace as each other computer.  Also, make sure each ccnd points to one another.  This can be attained by adding an entry for each computer in ccnd.conf under ~/ccnd.
+
+Questions/Comments:
+
+Please contact the authors: Jared <lindblom@cs.ucla.edu>, John <mingchuh@cs.ucla.edu>
 
 Known Bugs:
 
