@@ -31,53 +31,37 @@ Elevate Permissions for two Shell Scripts:
 
 Compile the Application:
 
-	./compile.sh
+	./compile.sh 
 
 Execute the Application:
 
-	./execute.sh
+	./execute.sh [ -h ] [ -g ] [ -d ] [ -x ] [ -r <repository dir> ]
+
+	-h : help
+	-g : gui
+	-d : execute ccndstart
+	-x : 64-bit JVM (for Jnotify native libraries)
+	-r : execute ccnr in <repository dir>
 
 Eclipse Environment:
 
-Import the NDNDropbox Project into Eclipse.  Under Project run configuration, add this VM argument: -Djava.library.path=./libs.  This resolves the JNotify native library dependency.  Please make sure the main class of the project is NDNDriveGUI.  
+Import the NDNDropbox Project into Eclipse.  Under Project run configuration, add this VM argument for 32-bit JVM's: -Djava.library.path=./libs or this argument for 64-bit JVM's: -Djava.library.path=./libs/64bit.  This resolves the JNotify native library dependency.  Please make sure the main class of the project is NDNDriveGUI for a GUI or NDNDropbox for command line.  
 
-Interacting with the Application:
+Execute ccnd and ccnr manually before starting the application.  
 
-When the program is executed, a GUI will appear and ask you to enter information, example input follows:
+Interacting with the Application (GUI):
 
-<repository dir> : /home/jared/Repository
+When the application is executed, a GUI will appear and ask you to enter information, example input follows:
+
 <shared dir> : /home/jared/Desktop/Shared
 <topology> : /ndn/ucla.edu
 <namespace> : /dropbox
 
 Once confirm is clicked the GUI disappears and the application starts running.
 
-IMPORTANT: If you would like to have ccnd and/or ccnr start with the application automatically, please uncomment the following lines in the method RunProgram() in the file MainProgram.java:
+Interacting with the Application (Command Line):
 
-For ccnd:
-
-try {
-	Runtime.getRuntime().exec("ccndstop");
-	Runtime.getRuntime().exec("ccndstart");
-} catch (IOException e1) {
-	// TODO Auto-generated catch block
-	e1.printStackTrace();
-}
-
-For ccnr:
-
-Please Add the following line to the top of the file: 	
-
-import java.io.File;
-
-And Uncomment:
-
-try {
-	File tmpRepo = new File(repoDirectoryPath);
-	Runtime.getRuntime().exec("ccnr",null, tmpRepo);
-} catch (IOException e2)
-	e2.printStackTrace();
-}
+You will be asked to enter the same information as asked by the program above through a simpler interface.
 
 Once the application is executed, you may interact with it by dragging and dropping, copy and pasting, creating or deleting files within the shared directory you defined earlier.  
 
@@ -89,4 +73,4 @@ Please contact the authors: Jared <lindblom@cs.ucla.edu>, John <mingchuh@cs.ucla
 
 Known Bugs:
 
-Our program relies on Jnotify to monitor changes to the file within the shared directory.  We have noticed that Jnotify sometimes does not detect deletions from the shared directory on Ubuntu 12.04.  
+Our application relies on Jnotify to monitor changes to the file within the shared directory.  We have noticed that Jnotify sometimes does not detect deletions from the shared directory on Ubuntu 12.04.
