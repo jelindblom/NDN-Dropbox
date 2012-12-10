@@ -54,8 +54,8 @@ Interacting with the Application (GUI):
 When the application is executed, a GUI will appear and ask you to enter information, example input follows:
 
 <shared dir> : /home/jared/Desktop/Shared
-<topology> : /ndn/ucla.edu
-<namespace> : /dropbox
+<topological prefix> : /ndn/ucla.edu
+<naming prefix> : /dropbox
 
 Once confirm is clicked the GUI disappears and the application starts running.
 
@@ -65,7 +65,7 @@ You will be asked to enter the same information as asked by the program above th
 
 Once the application is executed, you may interact with it by dragging and dropping, copy and pasting, creating or deleting files within the shared directory you defined earlier.  
 
-IMPORTANT: Each computer wishing to share files must use the SAME topology and namespace as each other computer.  Also, make sure each ccnd points to one another.  This can be attained by adding an entry for each computer in ccnd.conf under ~/ccnd.
+IMPORTANT: Each computer wishing to share files must use the SAME topological and naming prefix as each other computer.  Also, make sure each ccnd points to one another.  This can be attained by adding an entry for each computer in ccnd.conf under ~/ccnd.
 
 Questions/Comments:
 
@@ -74,3 +74,5 @@ Please contact the authors: Jared <lindblom@cs.ucla.edu>, John <mingchuh@cs.ucla
 Known Bugs:
 
 Our application relies on Jnotify to monitor changes to the file within the shared directory.  We have noticed that Jnotify sometimes does not detect deletions from the shared directory on Ubuntu 12.04.
+
+We are investigating an issue with signature verification where one host cannot verify the signature on content published by another host.  A workaround for this issue is to backup the keystores of every host and distribute one keystore to every host, so that they all use the same key to sign the content they publish.     

@@ -133,7 +133,7 @@ public class Parameters {
 
 	public ContentName getContentNameFromFileName(String fileName) throws MalformedContentNameStringException {
 		/** Build Content Name */		
-		ContentName contentName = new ContentName(namespace, fileName);
+		ContentName contentName = namespace.append(fileName);
 
 		System.out.println("Created Content Name: " + contentName.toString());
 
